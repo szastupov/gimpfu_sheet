@@ -15,17 +15,16 @@ def process_layers(layers):
     sheet_width = 0
     sheet_height = 0
     for layers in groups.values():
-        lwidth = 0
-        lheight = 0
-        # Calculate layer bounds
+        theight = 0
+        twidth = 0
+        # Calculate tape bounds
         for l in layers:
-            lwidth = max(lwidth, l.width)
-            lheight = max(lheight, l.height)
-        tapes.append((lwidth, lheight, layers))
+            theight = max(theight, l.height)
+            twidth += l.width
+        tapes.append((twidth, theight, layers))
 
-        twidth = len(layers)*lwidth # tape width
         sheet_width = max(sheet_width, twidth)
-        sheet_height = sheet_height+lheight
+        sheet_height += theight
 
     return (sheet_width, sheet_height, tapes)
 
@@ -39,16 +38,19 @@ def make_animated_sprite(src, src_drawable):
     img.add_layer(layer, 0)
 
     y = 0
-    for (lwidth, lheight, layers) in tapes:
+    for (twidth, theight, layers) in tapes:
         x = 0
+        print len(layers)
         for l in layers:
+            print ("{ %d, %d, %d, %d }," % (x, y, l.width, l.height))
             src.active_layer = l
             pdb.gimp_edit_copy(l)
-            pdb.gimp_rect_select(img, x, y, lwidth, lheight, 2, 0, 0)
+            pdb.gimp_rect_select(img, x, y, l.width, l.height, 2, 0, 0)
             pdb.gimp_edit_paste(layer, 1)
             pdb.gimp_floating_sel_anchor(pdb.gimp_image_get_floating_sel(img))
-            x += lwidth
-        y += lheight
+            x += l.width
+        y += theight
+        print
     pdb.gimp_selection_none(img)
 
     disp = gimp.Display(img)
