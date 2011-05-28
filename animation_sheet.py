@@ -12,24 +12,32 @@ def process_layers(layers):
             groups[name] = []
         groups[name].append(layer)
 
-    tapes = []
     sheet_width = 0
     sheet_height = 0
-    for (name, layers) in groups.items():
-        theight = 0
-        twidth = 0
-        # Calculate tape bounds
-        for l in layers:
-            theight = max(theight, l.height)
-            twidth += l.width
-        tapes.append((name, twidth, theight, layers))
-
+    for layers in groups.values():
+        twidth = sum(l.width for l in layers)
         sheet_width = max(sheet_width, twidth)
-        sheet_height += theight
+
+    tapes = []
+    x = 0
+    y = 0
+    for (name, layers) in groups.items():
+        twidth = sum(l.width for l in layers)
+        if (twidth+x > sheet_width):
+            x = 0
+            y = sheet_height
+
+        nlayers = []
+        for l in layers:
+            nlayers.append((x, y, l))
+            sheet_height = max(sheet_height, y+l.height)
+            x += l.width
+        tapes.append((name, nlayers))
 
     return (sheet_width, sheet_height, tapes)
 
-def make_animated_sprite(src, src_drawable):
+def make_animated_sprite(src, src_drawable, image_file, animation_file):
+    gimp.progress_init("Generating sprite sheet")
     (sheet_width, sheet_height, tapes) = process_layers(src.layers)
 
     # Create new image
@@ -38,26 +46,32 @@ def make_animated_sprite(src, src_drawable):
                        src_drawable.type, 100, NORMAL_MODE)
     img.add_layer(layer, 0)
 
-    out = sys.stdout
+    if animation_file is None:
+        out = sys.stdout
+    else:
+        out = open(animation_file, "w")
     out.write("%d\n" % len(tapes))
 
-    y = 0
-    for (tname, twidth, theight, layers) in tapes:
-        x = 0
-        out.write("\n%s %d\n" % (tname, len(layers)))
-        for l in layers:
+    ntape = 0
+    for (name, layers) in tapes:
+        ntape += 1
+        gimp.progress_update(float(ntape)/len(tapes))
+        out.write("\n%s %d\n" % (name, len(layers)))
+        for (x, y, l) in layers:
             out.write("%d %d %d %d\n" % (x, y, l.width, l.height))
             src.active_layer = l
             pdb.gimp_edit_copy(l)
             pdb.gimp_rect_select(img, x, y, l.width, l.height, 2, 0, 0)
             pdb.gimp_edit_paste(layer, 1)
             pdb.gimp_floating_sel_anchor(pdb.gimp_image_get_floating_sel(img))
-            x += l.width
-        y += theight
     pdb.gimp_selection_none(img)
 
-    disp = gimp.Display(img)
-    gimp.displays_flush()
+    if image_file is None:
+        disp = gimp.Display(img)
+        gimp.displays_flush()
+    else:
+        pdb.gimp_file_save(img, layer, image_file, image_file)
+        gimp.delete(img)
 
 register("make_animated_sprite",
          "Make sprite sheet from layers",
@@ -67,7 +81,10 @@ register("make_animated_sprite",
          "2011",
          "<Image>/Filters/Animation/Make sprite sheet",
          "RGB, RGBA",
-         [],
+         [
+          (PF_FILE, "image_file", "Save image to (keep None to save manualy)", ""),
+          (PF_FILE, "animation_file", "Save animation to", ".txt")
+         ],
          [],
          make_animated_sprite)
 
