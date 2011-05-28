@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from gimpfu import *
-import sys
+import os
 
 def process_layers(layers):
     # Group layers by name
@@ -9,30 +9,40 @@ def process_layers(layers):
     for layer in reversed(layers):
         name = layer.name.split()[0]
         if not name in groups:
-            groups[name] = []
-        groups[name].append(layer)
+            groups[name] = { 'layers': [] }
+        groups[name]['layers'].append(layer)
 
     sheet_width = 0
     sheet_height = 0
-    for layers in groups.values():
-        twidth = sum(l.width for l in layers)
+    group_list = []
+    # Precalculate some values
+    for (name, group) in groups.items():
+        twidth = sum(l.width for l in group['layers'])
+        theight = max(l.height for l in group['layers'])
+        group['width'] = twidth
+        group['height'] = theight
+        group['name'] = name
         sheet_width = max(sheet_width, twidth)
+        group_list.append(group)
 
+    # Sort groups for better fit
+    group_list.sort(key = lambda g: g['width']*g['height'], reverse=True)
+
+    # Final pass
     tapes = []
     x = 0
     y = 0
-    for (name, layers) in groups.items():
-        twidth = sum(l.width for l in layers)
-        if (twidth+x > sheet_width):
+    for group in group_list:
+        if (group['width']+x > sheet_width):
             x = 0
             y = sheet_height
 
         nlayers = []
-        for l in layers:
+        for l in group['layers']:
             nlayers.append((x, y, l))
             sheet_height = max(sheet_height, y+l.height)
             x += l.width
-        tapes.append((name, nlayers))
+        tapes.append((group['name'], nlayers))
 
     return (sheet_width, sheet_height, tapes)
 
@@ -47,7 +57,7 @@ def make_animated_sprite(src, src_drawable, image_file, animation_file):
     img.add_layer(layer, 0)
 
     if animation_file is None:
-        out = sys.stdout
+        out = open(os.devnull, "w")
     else:
         out = open(animation_file, "w")
     out.write("%d\n" % len(tapes))
@@ -65,6 +75,7 @@ def make_animated_sprite(src, src_drawable, image_file, animation_file):
             pdb.gimp_edit_paste(layer, 1)
             pdb.gimp_floating_sel_anchor(pdb.gimp_image_get_floating_sel(img))
     pdb.gimp_selection_none(img)
+    out.close()
 
     if image_file is None:
         disp = gimp.Display(img)
@@ -82,8 +93,8 @@ register("make_animated_sprite",
          "<Image>/Filters/Animation/Make sprite sheet",
          "RGB, RGBA",
          [
-          (PF_FILE, "image_file", "Save image to (keep None to save manualy)", ""),
-          (PF_FILE, "animation_file", "Save animation to", ".txt")
+          (PF_FILE, "image_file", "Destination (None to open in a new window)", ""),
+          (PF_FILE, "animation_file", "Save animation", ".txt")
          ],
          [],
          make_animated_sprite)
