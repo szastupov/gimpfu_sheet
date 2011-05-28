@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from gimpfu import *
+import sys
 
 def process_layers(layers):
     # Group layers by name
@@ -14,14 +15,14 @@ def process_layers(layers):
     tapes = []
     sheet_width = 0
     sheet_height = 0
-    for layers in groups.values():
+    for (name, layers) in groups.items():
         theight = 0
         twidth = 0
         # Calculate tape bounds
         for l in layers:
             theight = max(theight, l.height)
             twidth += l.width
-        tapes.append((twidth, theight, layers))
+        tapes.append((name, twidth, theight, layers))
 
         sheet_width = max(sheet_width, twidth)
         sheet_height += theight
@@ -37,12 +38,15 @@ def make_animated_sprite(src, src_drawable):
                        src_drawable.type, 100, NORMAL_MODE)
     img.add_layer(layer, 0)
 
+    out = sys.stdout
+    out.write("%d\n" % len(tapes))
+
     y = 0
-    for (twidth, theight, layers) in tapes:
+    for (tname, twidth, theight, layers) in tapes:
         x = 0
-        print len(layers)
+        out.write("\n%s %d\n" % (tname, len(layers)))
         for l in layers:
-            print ("{ %d, %d, %d, %d }," % (x, y, l.width, l.height))
+            out.write("%d %d %d %d\n" % (x, y, l.width, l.height))
             src.active_layer = l
             pdb.gimp_edit_copy(l)
             pdb.gimp_rect_select(img, x, y, l.width, l.height, 2, 0, 0)
@@ -50,7 +54,6 @@ def make_animated_sprite(src, src_drawable):
             pdb.gimp_floating_sel_anchor(pdb.gimp_image_get_floating_sel(img))
             x += l.width
         y += theight
-        print
     pdb.gimp_selection_none(img)
 
     disp = gimp.Display(img)
